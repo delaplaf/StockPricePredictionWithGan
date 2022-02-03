@@ -5,9 +5,18 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 import numpy as np
 from pickle import load
+
+from sklearn.preprocessing import MinMaxScaler
+
+try:
+    from preprocessing import *
+    from test_pred import *
+except:
+    pass
+
 from tensorflow.keras.losses import mean_squared_error
 from tensorflow.keras.layers import GRU, Dense, Flatten, Conv1D, BatchNormalization, LeakyReLU, ELU, ReLU
-from tensorflow.keras.metrics import Mean
+from tensorflow.keras.metrics import Mean, RootMeanSquaredError
 from tensorflow.keras import Sequential, regularizers
 from tensorflow.python.client import device_lib
 from tensorflow.keras import Model
@@ -48,7 +57,7 @@ def Discriminator():
 
 # Train WGAN-GP model
 class WGAN_GP(Model):
-    def __init__(self, generator, discriminator, d_steps=1, g_steps=3, gp_weight=10):
+    def __init__(self, generator, discriminator, custom_metric, d_steps=1, g_steps=3, gp_weight=10):
         super(WGAN_GP, self).__init__()
         self.discriminator = discriminator
         self.generator = generator
@@ -57,10 +66,11 @@ class WGAN_GP(Model):
         self.gp_weight = gp_weight
         self.disc_loss_tracker = Mean(name="discriminator_loss")
         self.gen_loss_tracker = Mean(name="generator_loss")
+        self.metric_rmse_scaled = custom_metric
 
     @property
     def metrics(self):
-        return [self.gen_loss_tracker, self.disc_loss_tracker]
+        return [self.gen_loss_tracker, self.disc_loss_tracker, self.metric_rmse_scaled]
     
     def compile(self, d_optimizer, g_optimizer, d_loss_fn, g_loss_fn):
         super(WGAN_GP, self).compile()
@@ -68,6 +78,9 @@ class WGAN_GP(Model):
         self.g_optimizer = g_optimizer
         self.d_loss_fn = d_loss_fn
         self.g_loss_fn = g_loss_fn
+
+    def call(self, inputs):
+        return self.generator(inputs)
 
     def gradient_penalty(self, batch_size, real_output, fake_output):
         """ Calculates the gradient penalty.
@@ -154,9 +167,89 @@ class WGAN_GP(Model):
         self.disc_loss_tracker.update_state(d_loss)
         self.gen_loss_tracker.update_state(g_loss)
 
+        # Monitor metric
+        self.metric_rmse_scaled.update_state(real_price, generated_data)
+
         return {
             "d_loss": self.disc_loss_tracker.result(),
             "g_loss": self.gen_loss_tracker.result(),
+            "rmse": self.metric_rmse_scaled.result()
+        }
+
+    # def test_step(self, data):
+    #     # Unpack the data
+    #     real_input, real_price, yc = data
+    #     real_price = tf.cast(real_price, tf.float32)
+
+    #     # Compute predictions
+    #     generated_data = self.generator(real_input, training=False)
+
+    #     # Update the metrics.
+    #     self.metric_rmse_scaled.update_state(real_price, generated_data)
+        
+    #     return {
+    #         "rmse": self.metric_rmse_scaled.result()
+    #     }
+
+    def test_step(self, data):
+        real_input, real_price, yc = data
+
+        # cast in float32 to concat with generator output
+        yc = tf.cast(yc, tf.float32)
+        real_price = tf.cast(real_price, tf.float32)
+
+        batch_size = tf.shape(real_input)[0]
+
+        # discriminator loss
+        with tf.GradientTape() as d_tape:
+            # generate fake output
+            generated_data = self.generator(real_input, training=False)
+
+            generated_shape = tf.shape(generated_data)
+            generated_data_reshape = tf.reshape(generated_data, [generated_shape[0], generated_shape[1], 1])
+            fake_output = tf.concat([generated_data_reshape, yc], axis=1)
+
+            # get real output
+            real_price_shape = tf.shape(real_price)
+            real_price_reshape = tf.reshape(real_price, [real_price_shape[0], real_price_shape[1], 1])
+            real_output = tf.concat([real_price_reshape, yc], axis=1)
+
+            # Get the logits for the fake images
+            D_real = self.discriminator(real_output, training=False)
+            # Get the logits for real images
+            D_fake = self.discriminator(fake_output, training=False)
+            # Calculate discriminator loss using fake and real logits
+            d_cost = self.d_loss_fn(D_real, D_fake)
+            # Calculate the gradient penalty
+            gp = self.gradient_penalty(batch_size, real_output, fake_output)
+            # Add the gradient penalty to the original discriminator loss
+            d_loss = d_cost + gp * self.gp_weight
+
+        # Train the generator
+        with tf.GradientTape() as g_tape:
+            # generate fake output
+            generated_data = self.generator(real_input, training=False)
+
+            generated_shape = tf.shape(generated_data)
+            generated_data_reshape = tf.reshape(generated_data, [generated_shape[0], generated_shape[1], 1])
+            fake_output = tf.concat([generated_data_reshape, yc], axis=1)
+
+            # Get the discriminator logits for fake images
+            G_fake = self.discriminator(fake_output, training=False)
+            # Calculate the generator loss
+            g_loss = self.g_loss_fn(G_fake)
+
+        # Monitor loss.
+        self.disc_loss_tracker.update_state(d_loss)
+        self.gen_loss_tracker.update_state(g_loss)
+
+        # Monitor metric
+        self.metric_rmse_scaled.update_state(real_price, generated_data)
+
+        return {
+            "d_loss": self.disc_loss_tracker.result(),
+            "g_loss": self.gen_loss_tracker.result(),
+            "rmse": self.metric_rmse_scaled.result()
         }
 
 
@@ -175,6 +268,20 @@ class SaveModel(callbacks.Callback):
                              )
 
 
+class SaveBestModel(tf.keras.callbacks.Callback):
+    def __init__(self, save_path, save_best_metric='val_rmse'):
+        self.save_path = os.path.join(save_path, "wgan_gp_best.h5")
+        self.save_best_metric = save_best_metric
+        self.best = float('inf')
+
+    def on_epoch_end(self, epoch, logs=None):
+        metric_value = logs[self.save_best_metric]
+        if metric_value < self.best:
+            self.best = metric_value
+            self.model.generator.save(self.save_path)
+            print("Current best epoch: ", epoch + 1)
+
+
 # Define the loss functions for the discriminator,
 # which should be (fake_loss - real_loss).
 # We will add the gradient penalty later to this loss function.
@@ -189,9 +296,62 @@ def discriminator_loss(D_real, D_fake):
 def generator_loss(G_fake):
     return -tf.reduce_mean(G_fake)
 
+class Metric_rmse_scaled(tf.keras.metrics.Metric):
+
+    def __init__(self, y_scaler_function, **kwargs):
+        super(Metric_rmse_scaled, self).__init__(**kwargs)
+        self.rmse_scaled = self.add_weight(name='my_metric', initializer='zeros')
+        self.y_scaler_function = y_scaler_function
+
+    def update_state(self, y_true, y_pred):
+        y_true = tf.cast(y_true, tf.float64)
+        y_pred = tf.cast(y_pred, tf.float64)
+        y_true = (y_true - tf.constant(self.y_scaler_function.min_)) / tf.constant(self.y_scaler_function.scale_)
+        y_pred = (y_pred - tf.constant(self.y_scaler_function.min_)) / tf.constant(self.y_scaler_function.scale_)
+        rmse = tf.sqrt(tf.math.reduce_mean(tf.square(y_pred - y_true)))
+        self.rmse_scaled.assign(tf.cast(rmse, tf.float32))
+
+    def result(self):
+        return self.rmse_scaled
+
+    def reset_state(self):
+        self.rmse_scaled.assign(0.)
+
 
 if __name__ == '__main__':
-    # Load data
+    #----------------------    Preprocessing    -----------------------
+    data = pd.read_csv(r'Data\DataFacebook.csv', parse_dates=['date'])
+
+    # Get technical features
+    technical_data = get_technical_indicators(data)
+    technical_data = technical_data.iloc[20:,:].reset_index(drop=True)
+
+    # Get Fourier features
+    fourier_data = get_fourier_transfer(technical_data)
+
+    # Get all features
+    data_final = pd.concat([technical_data, fourier_data], axis=1)
+
+    manage_nan(data_final)
+    data_final = manage_dates(data_final)
+
+    # Get features and target
+    X = pd.DataFrame(data_final.iloc[:, :])
+    y = pd.DataFrame(data_final.iloc[:, 0])
+
+    # Normalized the data
+    X_scaler_function = MinMaxScaler(feature_range=(-1, 1))
+    y_scaler_function = MinMaxScaler(feature_range=(-1, 1))
+
+    X_scaled = X_scaler_function.fit_transform(X)
+    y_scaled = y_scaler_function.fit_transform(y)
+
+    N_STEPS_IN = 3
+    N_STEPS_OUT = 1
+    pathToSave = r'Data\dataPreprocessed'
+    reshape_dataset(pathToSave, data_final, X_scaled, y_scaled, N_STEPS_IN, N_STEPS_OUT)
+
+    #----------------------    Training    -----------------------
     path = r'Data\dataPreprocessed'
     X_train = np.load(os.path.join(path, "X_train.npy"), allow_pickle=True)
     y_train = np.load(os.path.join(path, "y_train.npy"), allow_pickle=True)
@@ -205,7 +365,7 @@ if __name__ == '__main__':
     output_generator_dim = y_train.shape[1]
 
     # Hyperparameter
-    EPOCHS = 5
+    EPOCHS = 100
     BATCH_SIZE = 128
     D_STEPS = 1
     G_STEPS = 3
@@ -220,7 +380,7 @@ if __name__ == '__main__':
     generator = Generator(input_generator_dim, output_generator_dim, feature_size)
     generator.compile()
     discriminator = Discriminator()
-    wgan_gp = WGAN_GP(generator, discriminator, D_STEPS, G_STEPS, GP_WEIGHT)
+    wgan_gp = WGAN_GP(generator, discriminator, Metric_rmse_scaled(y_scaler_function), D_STEPS, G_STEPS, GP_WEIGHT)
 
     # Compile the WGAN model.
     wgan_gp.compile(
@@ -230,15 +390,21 @@ if __name__ == '__main__':
         g_loss_fn=generator_loss
     )
 
-    data = X_train, y_train, yc_train
     dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train, yc_train))
     dataset = dataset.batch(BATCH_SIZE)
 
+    test_dataset = tf.data.Dataset.from_tensor_slices((X_test , y_test , yc_test ))
+    test_dataset = test_dataset.batch(BATCH_SIZE)
+
     save_path = r'Models\trying'
     EPOCH_MODEL_SAVE = 1
-    callback = [SaveModel(save_path, EPOCH_MODEL_SAVE)]
+    
+    es = callbacks.EarlyStopping(monitor='val_rmse', mode='min', verbose=1, patience=20)
+    callback = [es, SaveModel(save_path, EPOCH_MODEL_SAVE), SaveBestModel(save_path)]
 
-    history = wgan_gp.fit(dataset, epochs=EPOCHS, callbacks=callback)
+    history = wgan_gp.fit(dataset, epochs=EPOCHS, callbacks=callback, validation_data=test_dataset)
+
+    y_predicted = wgan_gp(X_test)
 
     # summarize history for loss
     plt.plot(history.history['d_loss'])
@@ -248,3 +414,15 @@ if __name__ == '__main__':
     plt.xlabel('epoch')
     plt.legend(['d_loss', 'g_loss'], loc='upper left')
     plt.show()
+
+    path = r'Data\dataPreprocessed'
+
+    # Load index
+    test_predict_index = np.load(os.path.join(path,"index_test.npy"), allow_pickle=True)
+
+    # Load test dataset/ model
+    G_model = models.load_model(r'Models\trying\wgan_gp_0100epoch.h5')
+    X_test = np.load(os.path.join(path,"X_test.npy"), allow_pickle=True)
+    y_test = np.load(os.path.join(path,"y_test.npy"), allow_pickle=True)
+
+    get_test_plot(X_test, y_test, G_model, y_scaler_function, test_predict_index)
