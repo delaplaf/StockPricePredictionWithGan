@@ -107,6 +107,45 @@ class WGAN_GP(Model):
         gp = tf.reduce_mean((norm - 1.0) ** 2)
         return gp
 
+    def d_loss(self, real_input, real_price, yc, batch_size, withTraining):
+        # generate fake output
+        generated_data = self.generator(real_input, training=withTraining)
+
+        generated_shape = tf.shape(generated_data)
+        generated_data_reshape = tf.reshape(generated_data, [generated_shape[0], generated_shape[1], 1])
+        fake_output = tf.concat([generated_data_reshape, yc], axis=1)
+
+        # get real output
+        real_price_shape = tf.shape(real_price)
+        real_price_reshape = tf.reshape(real_price, [real_price_shape[0], real_price_shape[1], 1])
+        real_output = tf.concat([real_price_reshape, yc], axis=1)
+
+        # Get the logits for the fake images
+        D_real = self.discriminator(real_output, training=withTraining)
+        # Get the logits for real images
+        D_fake = self.discriminator(fake_output, training=withTraining)
+        # Calculate discriminator loss using fake and real logits
+        d_cost = self.d_loss_fn(D_real, D_fake)
+        # Calculate the gradient penalty
+        gp = self.gradient_penalty(batch_size, real_output, fake_output)
+        # Add the gradient penalty to the original discriminator loss
+        d_loss = d_cost + gp * self.gp_weight
+        return d_loss
+
+    def g_loss(self, real_input, yc, withTraining):
+        # generate fake output
+        generated_data = self.generator(real_input, training=withTraining)
+
+        generated_shape = tf.shape(generated_data)
+        generated_data_reshape = tf.reshape(generated_data, [generated_shape[0], generated_shape[1], 1])
+        fake_output = tf.concat([generated_data_reshape, yc], axis=1)
+
+        # Get the discriminator logits for fake images
+        G_fake = self.discriminator(fake_output, training=withTraining)
+        # Calculate the generator loss
+        g_loss = self.g_loss_fn(G_fake)
+        return g_loss, generated_data
+        
     def train_step(self, data):
         real_input, real_price, yc = data
 
@@ -119,28 +158,7 @@ class WGAN_GP(Model):
         # Train the discriminator
         for _ in range(self.d_steps):
             with tf.GradientTape() as d_tape:
-                # generate fake output
-                generated_data = self.generator(real_input, training=True)
-
-                generated_shape = tf.shape(generated_data)
-                generated_data_reshape = tf.reshape(generated_data, [generated_shape[0], generated_shape[1], 1])
-                fake_output = tf.concat([generated_data_reshape, yc], axis=1)
-
-                # get real output
-                real_price_shape = tf.shape(real_price)
-                real_price_reshape = tf.reshape(real_price, [real_price_shape[0], real_price_shape[1], 1])
-                real_output = tf.concat([real_price_reshape, yc], axis=1)
-
-                # Get the logits for the fake images
-                D_real = self.discriminator(real_output, training=True)
-                # Get the logits for real images
-                D_fake = self.discriminator(fake_output, training=True)
-                # Calculate discriminator loss using fake and real logits
-                d_cost = self.d_loss_fn(D_real, D_fake)
-                # Calculate the gradient penalty
-                gp = self.gradient_penalty(batch_size, real_output, fake_output)
-                # Add the gradient penalty to the original discriminator loss
-                d_loss = d_cost + gp * self.gp_weight
+                d_loss = self.d_loss(real_input, real_price, yc, batch_size, True)
 
             d_grads = d_tape.gradient(d_loss, self.discriminator.trainable_variables)
             self.d_optimizer.apply_gradients(zip(d_grads, self.discriminator.trainable_variables))
@@ -148,17 +166,7 @@ class WGAN_GP(Model):
         # Train the generator
         for _ in range(self.g_steps):
             with tf.GradientTape() as g_tape:
-                # generate fake output
-                generated_data = self.generator(real_input, training=True)
-
-                generated_shape = tf.shape(generated_data)
-                generated_data_reshape = tf.reshape(generated_data, [generated_shape[0], generated_shape[1], 1])
-                fake_output = tf.concat([generated_data_reshape, yc], axis=1)
-
-                # Get the discriminator logits for fake images
-                G_fake = self.discriminator(fake_output, training=True)
-                # Calculate the generator loss
-                g_loss = self.g_loss_fn(G_fake)
+                g_loss, generated_data = self.g_loss(real_input, yc, True)
 
             g_grads = g_tape.gradient(g_loss, self.generator.trainable_variables)
             self.g_optimizer.apply_gradients(zip(g_grads, self.generator.trainable_variables))
@@ -176,21 +184,6 @@ class WGAN_GP(Model):
             "rmse": self.metric_rmse_scaled.result()
         }
 
-    # def test_step(self, data):
-    #     # Unpack the data
-    #     real_input, real_price, yc = data
-    #     real_price = tf.cast(real_price, tf.float32)
-
-    #     # Compute predictions
-    #     generated_data = self.generator(real_input, training=False)
-
-    #     # Update the metrics.
-    #     self.metric_rmse_scaled.update_state(real_price, generated_data)
-        
-    #     return {
-    #         "rmse": self.metric_rmse_scaled.result()
-    #     }
-
     def test_step(self, data):
         real_input, real_price, yc = data
 
@@ -202,42 +195,11 @@ class WGAN_GP(Model):
 
         # discriminator loss
         with tf.GradientTape() as d_tape:
-            # generate fake output
-            generated_data = self.generator(real_input, training=False)
-
-            generated_shape = tf.shape(generated_data)
-            generated_data_reshape = tf.reshape(generated_data, [generated_shape[0], generated_shape[1], 1])
-            fake_output = tf.concat([generated_data_reshape, yc], axis=1)
-
-            # get real output
-            real_price_shape = tf.shape(real_price)
-            real_price_reshape = tf.reshape(real_price, [real_price_shape[0], real_price_shape[1], 1])
-            real_output = tf.concat([real_price_reshape, yc], axis=1)
-
-            # Get the logits for the fake images
-            D_real = self.discriminator(real_output, training=False)
-            # Get the logits for real images
-            D_fake = self.discriminator(fake_output, training=False)
-            # Calculate discriminator loss using fake and real logits
-            d_cost = self.d_loss_fn(D_real, D_fake)
-            # Calculate the gradient penalty
-            gp = self.gradient_penalty(batch_size, real_output, fake_output)
-            # Add the gradient penalty to the original discriminator loss
-            d_loss = d_cost + gp * self.gp_weight
+            d_loss = self.d_loss(real_input, real_price, yc, batch_size, False)
 
         # Train the generator
         with tf.GradientTape() as g_tape:
-            # generate fake output
-            generated_data = self.generator(real_input, training=False)
-
-            generated_shape = tf.shape(generated_data)
-            generated_data_reshape = tf.reshape(generated_data, [generated_shape[0], generated_shape[1], 1])
-            fake_output = tf.concat([generated_data_reshape, yc], axis=1)
-
-            # Get the discriminator logits for fake images
-            G_fake = self.discriminator(fake_output, training=False)
-            # Calculate the generator loss
-            g_loss = self.g_loss_fn(G_fake)
+            g_loss, generated_data = self.g_loss(real_input, yc, False)
 
         # Monitor loss.
         self.disc_loss_tracker.update_state(d_loss)
