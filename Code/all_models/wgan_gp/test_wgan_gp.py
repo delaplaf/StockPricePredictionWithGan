@@ -9,6 +9,8 @@ from pickle import load
 
 from sklearn.preprocessing import MinMaxScaler
 
+from tensorflow.keras import models
+
 try:
     currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
     parentdir = os.path.dirname(os.path.dirname(currentdir))
