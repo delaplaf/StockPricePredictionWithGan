@@ -11,9 +11,7 @@ from sklearn.preprocessing import MinMaxScaler
 
 try:
     currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-
     parentdir = os.path.dirname(os.path.dirname(currentdir))
-    print(parentdir)
     sys.path.insert(0, parentdir)
 
     from preprocessing import *
@@ -78,7 +76,7 @@ if __name__ == '__main__':
     output_generator_dim = y_train.shape[1]
 
     # Hyperparameter
-    EPOCHS = 5
+    EPOCHS = 100
     BATCH_SIZE = 128
     D_STEPS = 1
     G_STEPS = 3

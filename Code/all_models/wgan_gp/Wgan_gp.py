@@ -61,12 +61,12 @@ class WGAN_GP(Model):
 
         generated_shape = tf.shape(generated_data)
         generated_data_reshape = tf.reshape(generated_data, [generated_shape[0], generated_shape[1], 1])
-        fake_output = tf.concat([generated_data_reshape, yc], axis=1)
+        fake_output = tf.concat([yc, generated_data_reshape], axis=1)
 
         # get real output
         real_price_shape = tf.shape(real_price)
         real_price_reshape = tf.reshape(real_price, [real_price_shape[0], real_price_shape[1], 1])
-        real_output = tf.concat([real_price_reshape, yc], axis=1)
+        real_output = tf.concat([yc, real_price_reshape], axis=1)
 
         # Get the logits for the fake images
         D_real = self.discriminator(real_output, training=withTraining)
@@ -86,7 +86,7 @@ class WGAN_GP(Model):
 
         generated_shape = tf.shape(generated_data)
         generated_data_reshape = tf.reshape(generated_data, [generated_shape[0], generated_shape[1], 1])
-        fake_output = tf.concat([generated_data_reshape, yc], axis=1)
+        fake_output = tf.concat([yc, generated_data_reshape], axis=1)
 
         # Get the discriminator logits for fake images
         G_fake = self.discriminator(fake_output, training=withTraining)
