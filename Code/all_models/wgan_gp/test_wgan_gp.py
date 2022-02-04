@@ -117,7 +117,8 @@ if __name__ == '__main__':
 
     history = wgan_gp.fit(dataset, epochs=EPOCHS, callbacks=callback, validation_data=test_dataset)
 
-    plot_loss(history)
+    plot_d_loss(history)
+    plot_g_loss(history)
     plot_rmse(history)
 
     path = r'Data\dataPreprocessed'

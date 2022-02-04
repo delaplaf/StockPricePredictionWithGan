@@ -65,18 +65,29 @@ def plot_Fourier(data):
     plt.show()
 
 
-def plot_loss(history):
+def plot_d_loss(history):
     """
     summarize history for loss
     """
     plt.plot(history.history['d_loss'])
-    plt.plot(history.history['g_loss'])
     plt.plot(history.history['val_d_loss'])
-    plt.plot(history.history['val_g_loss'])
-    plt.title('model loss')
+    plt.title('discriminator loss')
     plt.ylabel('loss')
     plt.xlabel('epoch')
-    plt.legend(['d_loss', 'g_loss', 'val_d_loss', 'val_g_loss'], loc='upper left')
+    plt.legend(['d_loss', 'val_d_loss'], loc='upper left')
+    plt.show()
+
+
+def plot_g_loss(history):
+    """
+    summarize history for loss
+    """
+    plt.plot(history.history['g_loss'])
+    plt.plot(history.history['val_g_loss'])
+    plt.title('generator loss')
+    plt.ylabel('loss')
+    plt.xlabel('epoch')
+    plt.legend(['g_loss', 'val_g_loss'], loc='upper left')
     plt.show()
 
 
