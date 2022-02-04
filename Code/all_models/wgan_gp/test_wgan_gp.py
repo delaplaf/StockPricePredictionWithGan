@@ -11,8 +11,11 @@ from sklearn.preprocessing import MinMaxScaler
 
 try:
     currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-    parentdir = os.path.dirname(currentdir)
+
+    parentdir = os.path.dirname(os.path.dirname(currentdir))
+    print(parentdir)
     sys.path.insert(0, parentdir)
+
     from preprocessing import *
     from test_pred import *
     from plot_data import *
