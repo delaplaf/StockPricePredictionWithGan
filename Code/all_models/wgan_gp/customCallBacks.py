@@ -20,7 +20,7 @@ class SaveModel(callbacks.Callback):
 
 
 class SaveBestModel(tf.keras.callbacks.Callback):
-    def __init__(self, save_path, save_best_metric='val_rmse'):
+    def __init__(self, save_path, save_best_metric='val_d_loss'):
         self.save_path = os.path.join(save_path, "wgan_gp_best.h5")
         self.save_best_metric = save_best_metric
         self.best = float('inf')

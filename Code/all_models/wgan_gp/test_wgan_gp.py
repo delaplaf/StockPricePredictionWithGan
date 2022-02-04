@@ -58,7 +58,7 @@ if __name__ == '__main__':
     y_scaled = y_scaler_function.fit_transform(y)
 
     N_STEPS_IN = 3
-    N_STEPS_OUT = 1
+    N_STEPS_OUT = 3
     pathToSave = r'Data\dataPreprocessed'
     reshape_dataset(pathToSave, data_final, X_scaled, y_scaled, N_STEPS_IN, N_STEPS_OUT)
 
@@ -76,7 +76,7 @@ if __name__ == '__main__':
     output_generator_dim = y_train.shape[1]
 
     # Hyperparameter
-    EPOCHS = 100
+    EPOCHS = 200
     BATCH_SIZE = 128
     D_STEPS = 1
     G_STEPS = 3
@@ -110,7 +110,7 @@ if __name__ == '__main__':
     save_path = r'Models\trying'
     EPOCH_MODEL_SAVE = 1
     
-    es = callbacks.EarlyStopping(monitor='val_rmse', mode='min', verbose=1, patience=20)
+    es = callbacks.EarlyStopping(monitor='val_d_loss', mode='min', verbose=1, patience=20)
     callback = [es, SaveModel(save_path, EPOCH_MODEL_SAVE), SaveBestModel(save_path)]
 
     history = wgan_gp.fit(dataset, epochs=EPOCHS, callbacks=callback, validation_data=test_dataset)
@@ -129,4 +129,6 @@ if __name__ == '__main__':
     X_test = np.load(os.path.join(path,"X_test.npy"), allow_pickle=True)
     y_test = np.load(os.path.join(path,"y_test.npy"), allow_pickle=True)
 
-    get_test_plot(X_test, y_test, G_model, y_scaler_function, test_predict_index)
+    # get_test_plot2(X_test, y_test, G_model, y_scaler_function, test_predict_index)
+    get_test_global_rmse(X_test, y_test, G_model, y_scaler_function)
+    plot_test_pred(X_test, y_test, G_model, y_scaler_function, test_predict_index)
