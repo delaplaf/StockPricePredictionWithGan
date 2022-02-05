@@ -60,7 +60,7 @@ if __name__ == '__main__':
     y_scaled = y_scaler_function.fit_transform(y)
 
     N_STEPS_IN = 3
-    N_STEPS_OUT = 3
+    N_STEPS_OUT = 1
     pathToSave = r'Data\dataPreprocessed'
     reshape_dataset(pathToSave, data_final, X_scaled, y_scaled, N_STEPS_IN, N_STEPS_OUT)
 
@@ -78,7 +78,7 @@ if __name__ == '__main__':
     output_generator_dim = y_train.shape[1]
 
     # Hyperparameter
-    EPOCHS = 200
+    EPOCHS = 3
     BATCH_SIZE = 128
     D_STEPS = 1
     G_STEPS = 3
@@ -131,6 +131,6 @@ if __name__ == '__main__':
     X_test = np.load(os.path.join(path,"X_test.npy"), allow_pickle=True)
     y_test = np.load(os.path.join(path,"y_test.npy"), allow_pickle=True)
 
-    # get_test_plot2(X_test, y_test, G_model, y_scaler_function, test_predict_index)
-    get_test_global_rmse(X_test, y_test, G_model, y_scaler_function)
+    if N_STEPS_OUT > 1:
+        get_test_global_metrics(X_test, y_test, G_model, y_scaler_function)
     plot_test_pred(X_test, y_test, G_model, y_scaler_function, test_predict_index)

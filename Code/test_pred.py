@@ -2,10 +2,42 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 from pickle import load
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, mean_absolute_percentage_error
 import itertools
 
 
+def get_metrics(y_true, y_pred, whichOneString):
+    """
+    - A lower value of MAPE is the desired result from a prediction method.
+    - POCID is the percentage of the correct trend of the model
+    relative to the trend of expected value.
+    - SLG less than zero indicates financial losses.
+    """
+    print(whichOneString)
+    print('-- RMSE --', whichOneString, ':', np.sqrt(mean_squared_error(y_true, y_pred)))
+    print('-- MAPE --', whichOneString, ':', mean_absolute_percentage_error(y_true, y_pred))
+    print('-- POCID --', whichOneString, ':', pocid(y_true, y_pred))
+    print('-- SLG --', whichOneString, ':', slg(y_true, y_pred), '\n')
+
+
+def pocid(y_true, y_pred):
+    """Prediction on change of direction"""
+    return 100 * np.mean((np.diff(y_true) * np.diff(y_pred)) > 0)
+
+
+def slg(y_true, y_pred):
+    """
+    The SLG was inspired by POCID. It defined as the mean of the losses and
+    gains of the model.
+    """
+    all_dir = (np.diff(y_true) * np.diff(y_pred)) > 0
+    lt = np.abs(np.diff(y_true))
+    for ind, e in enumerate(lt):
+        if all_dir[ind] == False:
+            lt[ind] = - lt[ind]
+    return np.mean(lt)
+
+        
 def get_pred_rescaled(X_test, y_test, G_model, y_scaler):
     y_predicted = G_model(X_test)
     rescaled_real_y = y_scaler.inverse_transform(y_test)
@@ -24,9 +56,9 @@ def get_real_pred_flat(X_test, y_test, G_model, y_scaler):
     return rescaled_real_y, rescaled_predicted_y
 
 
-def get_test_global_rmse(X_test, y_test, G_model, y_scaler):
+def get_test_global_metrics(X_test, y_test, G_model, y_scaler):
     real, predicted = get_real_pred_flat(X_test, y_test, G_model, y_scaler)
-    print('-- RMSE -- Global --', np.sqrt(mean_squared_error(predicted, real)))
+    get_metrics(real, predicted, 'Global')
 
 
 def plot_test_pred(X_test, y_test, G_model, y_scaler, test_predict_index):
@@ -50,8 +82,9 @@ def plot_test_pred(X_test, y_test, G_model, y_scaler, test_predict_index):
         predict_result = pd.DataFrame(pred_y, columns=["predicted_price"],
                                                         index=test_predict_index)
 
-        plt.plot(predict_result, label='%s day ahead' % (nb_day + 1))
-        print('-- RMSE -- %s day ahead --', np.sqrt(mean_squared_error(predict_result, real_price)))
-    
-    plt.legend(loc="upper left" % (nb_day + 1), fontsize=16)
+        day_ahead = '%s Day ahead' % (nb_day + 1)
+        plt.plot(predict_result, label=day_ahead)
+        get_metrics(real_y, pred_y, day_ahead)
+   
+    plt.legend(loc="upper left", fontsize=16)
     plt.show()
