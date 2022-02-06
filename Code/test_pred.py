@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 from pickle import load
-from sklearn.metrics import mean_squared_error, mean_absolute_percentage_error
+from sklearn.metrics import mean_squared_error, mean_absolute_percentage_error, r2_score
 import itertools
 
 
@@ -15,6 +15,7 @@ def get_metrics(y_true, y_pred, whichOneString):
     """
     print(whichOneString)
     print('-- RMSE --', whichOneString, ':', np.sqrt(mean_squared_error(y_true, y_pred)))
+    print('-- R2 --', whichOneString, ':', r2_score(y_true, y_pred))
     print('-- MAPE --', whichOneString, ':', mean_absolute_percentage_error(y_true, y_pred))
     print('-- POCID --', whichOneString, ':', pocid(y_true, y_pred))
     print('-- SLG --', whichOneString, ':', slg(y_true, y_pred), '\n')
@@ -38,32 +39,35 @@ def slg(y_true, y_pred):
     return np.mean(lt)
 
         
-def get_pred_rescaled(X_test, y_test, G_model, y_scaler):
-    y_predicted = G_model(X_test)
+def get_pred_rescaled(X_test, y_test, G_model, y_scaler, pred_arima=None):
+    if pred_arima is None:
+        y_predicted = G_model(X_test)
+    else:
+        y_predicted = pred_arima
     rescaled_real_y = y_scaler.inverse_transform(y_test)
     rescaled_predicted_y = y_scaler.inverse_transform(y_predicted)
     return rescaled_real_y, rescaled_predicted_y
 
 
-def get_real_pred_flat(X_test, y_test, G_model, y_scaler):
+def get_real_pred_flat(X_test, y_test, G_model, y_scaler, pred_arima=None):
     # Set output steps
     output_dim = y_test.shape[1]
 
-    rescaled_real_y, rescaled_predicted_y = get_pred_rescaled(X_test, y_test, G_model, y_scaler)
+    rescaled_real_y, rescaled_predicted_y = get_pred_rescaled(X_test, y_test, G_model, y_scaler, pred_arima)
 
     rescaled_real_y = list(itertools.chain.from_iterable(rescaled_real_y))
     rescaled_predicted_y = list(itertools.chain.from_iterable(rescaled_predicted_y))
     return rescaled_real_y, rescaled_predicted_y
 
 
-def get_test_global_metrics(X_test, y_test, G_model, y_scaler):
-    real, predicted = get_real_pred_flat(X_test, y_test, G_model, y_scaler)
+def get_test_global_metrics(X_test, y_test, G_model, y_scaler, pred_arima=None):
+    real, predicted = get_real_pred_flat(X_test, y_test, G_model, y_scaler, pred_arima)
     get_metrics(real, predicted, 'Global')
 
 
-def plot_test_pred(X_test, y_test, G_model, y_scaler, test_predict_index):
+def plot_test_pred(X_test, y_test, G_model, y_scaler, test_predict_index, pred_arima=None):
     output_dim = y_test.shape[1]
-    rescaled_real_y, rescaled_predicted_y = get_pred_rescaled(X_test, y_test, G_model, y_scaler)
+    rescaled_real_y, rescaled_predicted_y = get_pred_rescaled(X_test, y_test, G_model, y_scaler, pred_arima)
 
     plt.figure(figsize=(16, 8))
     plt.xlabel("Date")

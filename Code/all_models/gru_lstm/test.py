@@ -32,7 +32,7 @@ from tensorflow.keras import callbacks
 # 0 -> gru
 # 1 -> ltsm
 # 2 -> bidir_lstm
-nb_model = 2
+NB_MODEL = 2
 
 if __name__ == '__main__':
     # Hyperparameter
@@ -44,8 +44,8 @@ if __name__ == '__main__':
     LEARNING_RATE = 0.0001
 
    #----------------------    Load Data    -----------------------
-
-    y_scaler_function = all_preprocessing(N_STEPS_IN, N_STEPS_OUT)
+    data = pd.read_csv(r'Data\DataFacebook.csv', parse_dates=['date'])
+    y_scaler_function = all_preprocessing(data, N_STEPS_IN, N_STEPS_OUT)
 
     path = r'Data\dataPreprocessed'
     X_train = np.load(os.path.join(path, "X_train.npy"), allow_pickle=True)
@@ -69,11 +69,11 @@ if __name__ == '__main__':
 
     callback = [es, checkpoint]
 
-    if nb_model == 0:
+    if NB_MODEL == 0:
         model = simple_gru(input_dim, output_dim, feature_size)
-    elif nb_model == 1:
+    elif NB_MODEL == 1:
         model = simple_lstm(input_dim, output_dim, feature_size)
-    elif nb_model == 2:
+    elif NB_MODEL == 2:
         model = simple_bidir_lstm(input_dim, output_dim, feature_size)
 
     model.compile(optimizer=optimizer, loss='mse')

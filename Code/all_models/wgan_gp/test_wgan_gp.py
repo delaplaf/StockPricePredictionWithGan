@@ -33,10 +33,10 @@ from tensorflow.keras import callbacks
 
 if __name__ == '__main__':
     # Hyperparameter
-    N_STEPS_IN = 3
+    N_STEPS_IN = 7
     N_STEPS_OUT = 1
 
-    EPOCHS = 3
+    EPOCHS = 2
     BATCH_SIZE = 128
     D_STEPS = 1
     G_STEPS = 3
@@ -45,8 +45,8 @@ if __name__ == '__main__':
     G_LEARNING_RATE = 0.0001
 
     #----------------------    Load Data    -----------------------
-
-    y_scaler_function = all_preprocessing(N_STEPS_IN, N_STEPS_OUT)
+    data = pd.read_csv(r'Data\DataFacebook.csv', parse_dates=['date'])
+    y_scaler_function = all_preprocessing(data, N_STEPS_IN, N_STEPS_OUT)
 
     path = r'Data\dataPreprocessed'
     X_train = np.load(os.path.join(path, "X_train.npy"), allow_pickle=True)

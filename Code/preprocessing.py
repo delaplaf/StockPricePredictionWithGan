@@ -149,18 +149,19 @@ def reshape_dataset(path, data, X_scaled, y_scaled, n_steps_in = 3, n_steps_out 
     print("Everything saved in ", path)
 
 
-def all_preprocessing(n_steps_in, n_steps_out):
-    data = pd.read_csv(r'Data\DataFacebook.csv', parse_dates=['date'])
+def all_preprocessing(data, n_steps_in, n_steps_out, is_arima=False):
+    if not is_arima:
+        # Get technical features
+        technical_data = get_technical_indicators(data)
+        technical_data = technical_data.iloc[20:,:].reset_index(drop=True)
 
-    # Get technical features
-    technical_data = get_technical_indicators(data)
-    technical_data = technical_data.iloc[20:,:].reset_index(drop=True)
+        # Get Fourier features
+        fourier_data = get_fourier_transfer(technical_data)
 
-    # Get Fourier features
-    fourier_data = get_fourier_transfer(technical_data)
-
-    # Get all features
-    data_final = pd.concat([technical_data, fourier_data], axis=1)
+        # Get all features
+        data_final = pd.concat([technical_data, fourier_data], axis=1)
+    else:
+        data_final = data.copy()
 
     manage_nan(data_final)
     data_final = manage_dates(data_final)
