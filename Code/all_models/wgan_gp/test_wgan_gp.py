@@ -32,39 +32,22 @@ from tensorflow.keras import callbacks
 
 
 if __name__ == '__main__':
-    #----------------------    Preprocessing    -----------------------
-    data = pd.read_csv(r'Data\DataFacebook.csv', parse_dates=['date'])
-
-    # Get technical features
-    technical_data = get_technical_indicators(data)
-    technical_data = technical_data.iloc[20:,:].reset_index(drop=True)
-
-    # Get Fourier features
-    fourier_data = get_fourier_transfer(technical_data)
-
-    # Get all features
-    data_final = pd.concat([technical_data, fourier_data], axis=1)
-
-    manage_nan(data_final)
-    data_final = manage_dates(data_final)
-
-    # Get features and target
-    X = pd.DataFrame(data_final.iloc[:, :])
-    y = pd.DataFrame(data_final.iloc[:, 0])
-
-    # Normalized the data
-    X_scaler_function = MinMaxScaler(feature_range=(-1, 1))
-    y_scaler_function = MinMaxScaler(feature_range=(-1, 1))
-
-    X_scaled = X_scaler_function.fit_transform(X)
-    y_scaled = y_scaler_function.fit_transform(y)
-
+    # Hyperparameter
     N_STEPS_IN = 3
     N_STEPS_OUT = 1
-    pathToSave = r'Data\dataPreprocessed'
-    reshape_dataset(pathToSave, data_final, X_scaled, y_scaled, N_STEPS_IN, N_STEPS_OUT)
 
-    #----------------------    Training    -----------------------
+    EPOCHS = 3
+    BATCH_SIZE = 128
+    D_STEPS = 1
+    G_STEPS = 3
+    GP_WEIGHT = 10
+    D_LEARNING_RATE = 0.0001
+    G_LEARNING_RATE = 0.0001
+
+    #----------------------    Load Data    -----------------------
+
+    y_scaler_function = all_preprocessing(N_STEPS_IN, N_STEPS_OUT)
+
     path = r'Data\dataPreprocessed'
     X_train = np.load(os.path.join(path, "X_train.npy"), allow_pickle=True)
     y_train = np.load(os.path.join(path, "y_train.npy"), allow_pickle=True)
@@ -77,14 +60,13 @@ if __name__ == '__main__':
     feature_size = X_train.shape[2]
     output_generator_dim = y_train.shape[1]
 
-    # Hyperparameter
-    EPOCHS = 3
-    BATCH_SIZE = 128
-    D_STEPS = 1
-    G_STEPS = 3
-    GP_WEIGHT = 10
-    D_LEARNING_RATE = 0.0001
-    G_LEARNING_RATE = 0.0001
+    data_train = tf.data.Dataset.from_tensor_slices((X_train, y_train, yc_train))
+    data_train = data_train.batch(BATCH_SIZE)
+
+    data_test = tf.data.Dataset.from_tensor_slices((X_test , y_test , yc_test ))
+    data_test = data_test.batch(BATCH_SIZE)
+
+    #----------------------    Training    -----------------------
 
     # Instantiate the optimizer for both networks
     discriminator_optimizer = tf.keras.optimizers.Adam(D_LEARNING_RATE)
@@ -103,33 +85,27 @@ if __name__ == '__main__':
         g_loss_fn=generator_loss
     )
 
-    dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train, yc_train))
-    dataset = dataset.batch(BATCH_SIZE)
-
-    test_dataset = tf.data.Dataset.from_tensor_slices((X_test , y_test , yc_test ))
-    test_dataset = test_dataset.batch(BATCH_SIZE)
-
     save_path = r'Models\trying'
     EPOCH_MODEL_SAVE = 1
     
     es = callbacks.EarlyStopping(monitor='val_d_loss', mode='min', verbose=1, patience=20)
     callback = [es, SaveModel(save_path, EPOCH_MODEL_SAVE), SaveBestModel(save_path)]
 
-    history = wgan_gp.fit(dataset, epochs=EPOCHS, callbacks=callback, validation_data=test_dataset)
+    history = wgan_gp.fit(data_train, epochs=EPOCHS, callbacks=callback, validation_data=data_test)
 
     plot_d_loss(history)
     plot_g_loss(history)
     plot_rmse(history)
 
+
+    #----------------------    Test    -----------------------
+
+    # Load test data & model
     path = r'Data\dataPreprocessed'
-
-    # Load index
     test_predict_index = np.load(os.path.join(path,"index_test.npy"), allow_pickle=True)
-
-    # Load test dataset/ model
-    G_model = models.load_model(r'Models\trying\wgan_gp_best.h5')
     X_test = np.load(os.path.join(path,"X_test.npy"), allow_pickle=True)
     y_test = np.load(os.path.join(path,"y_test.npy"), allow_pickle=True)
+    G_model = models.load_model(r'Models\trying\wgan_gp_best.h5')
 
     if N_STEPS_OUT > 1:
         get_test_global_metrics(X_test, y_test, G_model, y_scaler_function)

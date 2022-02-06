@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
 
 
 def get_technical_indicators(data):
@@ -146,3 +147,35 @@ def reshape_dataset(path, data, X_scaled, y_scaled, n_steps_in = 3, n_steps_out 
     np.save(os.path.join(path,'index_train.npy'), index_train)
     np.save(os.path.join(path,'index_test.npy'), index_test)
     print("Everything saved in ", path)
+
+
+def all_preprocessing(n_steps_in, n_steps_out):
+    data = pd.read_csv(r'Data\DataFacebook.csv', parse_dates=['date'])
+
+    # Get technical features
+    technical_data = get_technical_indicators(data)
+    technical_data = technical_data.iloc[20:,:].reset_index(drop=True)
+
+    # Get Fourier features
+    fourier_data = get_fourier_transfer(technical_data)
+
+    # Get all features
+    data_final = pd.concat([technical_data, fourier_data], axis=1)
+
+    manage_nan(data_final)
+    data_final = manage_dates(data_final)
+
+    # Get features and target
+    X = pd.DataFrame(data_final.iloc[:, :])
+    y = pd.DataFrame(data_final.iloc[:, 0])
+
+    # Normalized the data
+    X_scaler_function = MinMaxScaler(feature_range=(-1, 1))
+    y_scaler_function = MinMaxScaler(feature_range=(-1, 1))
+
+    X_scaled = X_scaler_function.fit_transform(X)
+    y_scaled = y_scaler_function.fit_transform(y)
+
+    pathToSave = r'Data\dataPreprocessed'
+    reshape_dataset(pathToSave, data_final, X_scaled, y_scaled, n_steps_in, n_steps_out)
+    return y_scaler_function

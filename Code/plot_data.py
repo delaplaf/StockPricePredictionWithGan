@@ -91,6 +91,19 @@ def plot_g_loss(history):
     plt.show()
 
 
+def plot_loss(history):
+    """
+    summarize history for loss
+    """
+    plt.plot(history.history['loss'])
+    plt.plot(history.history['val_loss'])
+    plt.title('loss')
+    plt.ylabel('loss')
+    plt.xlabel('epoch')
+    plt.legend(['loss', 'val_loss'], loc='upper left')
+    plt.show()
+
+
 def plot_rmse(history):
     """
     summarize history for loss
