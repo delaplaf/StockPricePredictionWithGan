@@ -33,13 +33,13 @@ from tensorflow.keras import callbacks
 
 if __name__ == '__main__':
     # Hyperparameter
-    N_STEPS_IN = 7
-    N_STEPS_OUT = 1
+    N_STEPS_IN = 3
+    N_STEPS_OUT = 3
 
-    EPOCHS = 2
+    EPOCHS = 200
     BATCH_SIZE = 128
     D_STEPS = 1
-    G_STEPS = 3
+    G_STEPS = 5
     GP_WEIGHT = 10
     D_LEARNING_RATE = 0.0001
     G_LEARNING_RATE = 0.0001
@@ -74,7 +74,7 @@ if __name__ == '__main__':
 
     generator = Generator(input_generator_dim, output_generator_dim, feature_size)
     generator.compile()
-    discriminator = Discriminator()
+    discriminator = Discriminator(input_generator_dim, output_generator_dim)
     wgan_gp = WGAN_GP(generator, discriminator, Metric_rmse_scaled(y_scaler_function), D_STEPS, G_STEPS, GP_WEIGHT)
 
     # Compile the WGAN model.

@@ -6,9 +6,9 @@ from tensorflow.keras.layers import Dense, Flatten, Conv1D, LeakyReLU, ReLU
 from tensorflow.keras import Sequential
 
 # Define the discriminator
-def Discriminator():
+def Discriminator(input_dim, output_dim):
     model = Sequential()
-    model.add(Conv1D(32, input_shape=(4, 1), kernel_size=3, strides=2, padding="same", activation=LeakyReLU(alpha=0.01)))
+    model.add(Conv1D(32, input_shape=(input_dim + output_dim, 1), kernel_size=3, strides=2, padding="same", activation=LeakyReLU(alpha=0.01)))
     model.add(Conv1D(64, kernel_size=3, strides=2, padding="same", activation=LeakyReLU(alpha=0.01)))
     model.add(Conv1D(128, kernel_size=3, strides=2, padding="same", activation=LeakyReLU(alpha=0.01)))
     model.add(Flatten())
