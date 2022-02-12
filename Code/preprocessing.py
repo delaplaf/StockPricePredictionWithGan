@@ -2,7 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
-
+from plot_data import *
 
 def get_technical_indicators(data):
     """
@@ -149,7 +149,7 @@ def reshape_dataset(path, data, X_scaled, y_scaled, n_steps_in = 3, n_steps_out 
     print("Everything saved in ", path)
 
 
-def all_preprocessing(data, n_steps_in, n_steps_out, is_arima=False):
+def all_preprocessing(data, n_steps_in, n_steps_out, is_arima=False, plot=False):
     if not is_arima:
         # Get technical features
         technical_data = get_technical_indicators(data)
@@ -160,6 +160,10 @@ def all_preprocessing(data, n_steps_in, n_steps_out, is_arima=False):
 
         # Get all features
         data_final = pd.concat([technical_data, fourier_data], axis=1)
+
+        if plot:
+            plot_technical_indicators(technical_data, 400)
+            plot_Fourier(data_final)
     else:
         data_final = data.copy()
 
